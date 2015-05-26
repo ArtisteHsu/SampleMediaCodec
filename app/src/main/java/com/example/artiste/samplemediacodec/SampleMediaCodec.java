@@ -5,6 +5,7 @@ import android.content.res.AssetFileDescriptor;
 import android.media.MediaCodec;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
+import android.util.Log;
 import android.view.Surface;
 
 import java.io.IOException;
@@ -28,6 +29,10 @@ public class SampleMediaCodec {
     }
 
     private void playTask() throws IOException {
+        int counterTime;
+        int deltaTime;
+        int frameCount;
+
         /*
         Flow of video playback
         1.  MediaExtractor set source video resource (R.raw.xxx)
@@ -72,6 +77,10 @@ public class SampleMediaCodec {
         decoder.configure(format, surface, null, 0 /* 0:decoder 1:encoder */);
         decoder.start();
 
+        // Count FPS
+        counterTime = (int) (System.currentTimeMillis());
+        frameCount = 0;
+
         int timeoutUs = 1000000; // 1 second timeout
         boolean eos = false;
         MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
@@ -95,10 +104,18 @@ public class SampleMediaCodec {
             if (outputBufferIndex >= 0) {
 
                 // TODO: Retrieve decoded image by getOutputBuffer()
-                // TODO: Count FPS
 
                 // outputBuffer is ready to be processed or rendered.
-                 decoder.releaseOutputBuffer(outputBufferIndex, true /*true:render to surface*/);
+                decoder.releaseOutputBuffer(outputBufferIndex, true /*true:render to surface*/);
+
+                // Count FPS
+                frameCount++;
+                deltaTime = (int) (System.currentTimeMillis()) - counterTime;
+                if (deltaTime > 1000) {
+                    Log.v("SampleMediaCodec", (((float)frameCount / (float)deltaTime) * 1000) + " fps");
+                    counterTime = (int) (System.currentTimeMillis());
+                    frameCount = 0;
+                }
             }
         }
 
