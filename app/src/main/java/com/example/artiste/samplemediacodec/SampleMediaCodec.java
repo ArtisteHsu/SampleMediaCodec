@@ -11,6 +11,8 @@ import android.view.Surface;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import static android.os.SystemClock.sleep;
+
 public class SampleMediaCodec {
     private Context context;
     private Surface surface;
@@ -29,8 +31,8 @@ public class SampleMediaCodec {
     }
 
     private void playTask() throws IOException {
-        int counterTime;
-        int deltaTime;
+        long counterTime;
+        long deltaTime;
         int frameCount;
 
         /*
@@ -78,11 +80,13 @@ public class SampleMediaCodec {
         decoder.start();
 
         // Count FPS
-        counterTime = (int) (System.currentTimeMillis());
+        counterTime = System.currentTimeMillis();
         frameCount = 0;
 
         int timeoutUs = 1000000; // 1 second timeout
         boolean eos = false;
+        long playStartTime = System.currentTimeMillis();
+        long frameDisplayTime = playStartTime;
         MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
         for (;(!eos);) {
             int inputBufferIndex = decoder.dequeueInputBuffer(timeoutUs);
@@ -90,6 +94,7 @@ public class SampleMediaCodec {
                 ByteBuffer inputBuffer = decoder.getInputBuffer(inputBufferIndex);
                 int sampleSize = mediaExtractor.readSampleData(inputBuffer, 0);
                 if (sampleSize > 0) {
+                    frameDisplayTime = (mediaExtractor.getSampleTime() >> 10) + playStartTime;
                     // Video data is valid,send input buffer to MediaCodec for decode
                     decoder.queueInputBuffer(inputBufferIndex, 0, sampleSize, mediaExtractor.getSampleTime(), 0);
                     mediaExtractor.advance();
@@ -103,17 +108,20 @@ public class SampleMediaCodec {
             int outputBufferIndex = decoder.dequeueOutputBuffer(bufferInfo, timeoutUs);
             if (outputBufferIndex >= 0) {
 
-                // TODO: Retrieve decoded image by getOutputBuffer()
+                // Frame rate control
+                while(frameDisplayTime > System.currentTimeMillis()) {
+                    sleep(10);
+                }
 
                 // outputBuffer is ready to be processed or rendered.
                 decoder.releaseOutputBuffer(outputBufferIndex, true /*true:render to surface*/);
 
                 // Count FPS
                 frameCount++;
-                deltaTime = (int) (System.currentTimeMillis()) - counterTime;
+                deltaTime = System.currentTimeMillis() - counterTime;
                 if (deltaTime > 1000) {
                     Log.v("SampleMediaCodec", (((float)frameCount / (float)deltaTime) * 1000) + " fps");
-                    counterTime = (int) (System.currentTimeMillis());
+                    counterTime = System.currentTimeMillis();
                     frameCount = 0;
                 }
             }
